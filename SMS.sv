@@ -252,7 +252,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .WIDE(0)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({raw_serial,~gg_avail,~bk_ena}),
+	.status_menumask({~raw_serial,~gg_avail,~bk_ena}),
 	.forced_scandoubler(forced_scandoubler),
 	.new_vmode(pal),
 	.gamma_bus(gamma_bus),
