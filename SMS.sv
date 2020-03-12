@@ -117,6 +117,7 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
+	output  [2:0] USER_MODE,
 	input   [7:0] USER_IN,
 	output  [7:0] USER_OUT,
 
@@ -135,7 +136,8 @@ localparam SP64     = 1'b0;
 
 assign ADC_BUS  = 'Z;
 
-assign USER_OUT = '1;
+//assign USER_OUT = '1;
+
 //wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
 //CBUDLR
 //USER_OUT[0] = JOY_MDSEL;
@@ -185,8 +187,8 @@ parameter CONF_STR = {
 	"OB,BIOS,Enable,Disable;",
 	"OF,Disable mapper,No,Yes;",
 	"OG,Serial Mode,None,SNAC;",
-	"H2OI,SNAC Mode, 1 Player, 2 Players;",		
-	"H2OH,Phaser,Off,On;",
+	"H2OH,SNAC Mode, 1 Player, 2 Players;",		
+	"H2OI,Phaser,Off,On;",
 	"-;",
 	"R0,Reset;",
 	"J1,Fire 1,Fire 2,Pause;",
@@ -502,9 +504,10 @@ system #(MAX_SPPL) system
 	.nvram_q(nvram_q)
 );
 
-wire raw_serial = status[16];
-wire phaser     = status[17];
-wire joy_swap   = status[1];
+wire raw_serial  = status[16];
+wire raw_serial2 = status[17];
+wire phaser      = status[18];
+wire joy_swap    = status[1];
 
 assign joy[0] = joy_swap ? joy_1 : joy_0;
 assign joy[1] = joy_swap ? joy_0 : joy_1;
@@ -519,13 +522,21 @@ wire      joya_thin, joyb_thin;
 wire      joya_raw_th,joyb_raw_th;
 reg [1:0] jcnt = 0;
 
+reg JOY_SPLIT = 1'b1;
+reg [5:0] joy_delay;
+always @(posedge joy_delay[5])
+begin
+	JOY_SPLIT <= ~JOY_SPLIT;
+end
 
 always @(posedge clk_sys) begin
 	reg old_th;
 	reg [15:0] tmr;
 
-	if (raw_serial) begin
-		joya_raw[3] = USER_IN[5];//up
+	if (raw_serial & ~raw_serial2) begin
+		USER_OUT    <= '1;
+		USER_MODE   <= '0;
+		joya_raw[3] <= USER_IN[5];//up
 		joya_raw[2] <= USER_IN[7];//down	
 		joya_raw[1] <= USER_IN[1];//left
 		joya_raw[0] <= USER_IN[2];//right	
@@ -540,9 +551,37 @@ always @(posedge clk_sys) begin
 		joya <= joy_swap ? ~joy[1] : joya_raw;
 		joyb <= joy_swap ? joya_raw : ~joy[0];	
 		joya_thin <=  joy_swap ? 1'b1 : joya_raw_th;
-		joyb_thin <=  joy_swap ? joya_raw_th : 1'b1;
-		
+		joyb_thin <=  joy_swap ? joya_raw_th : 1'b1;	
+	end else if (raw_serial & raw_serial2) begin
+		USER_OUT    <= {3'b111,JOY_SPLIT,4'b1111};
+		USER_MODE   <=	3'b100;
+		joy_delay<=joy_delay+1;
+		if (JOY_SPLIT) begin
+			joya_raw[3] <= USER_IN[5];//up
+			joya_raw[2] <= USER_IN[7];//down	
+			joya_raw[1] <= USER_IN[1];//left
+			joya_raw[0] <= USER_IN[2];//right	
+			joya_raw[4] <= USER_IN[3];//trigger / button1
+			joya_raw[5] <= USER_IN[6];//button2
+			joya_raw[6] <= 1'b1;
+			joya_raw_th <= USER_IN[0];//sensor
+		end else begin
+			joyb_raw[3] <= USER_IN[5];//up
+			joyb_raw[2] <= USER_IN[7];//down	
+			joyb_raw[1] <= USER_IN[1];//left
+			joyb_raw[0] <= USER_IN[2];//right	
+			joyb_raw[4] <= USER_IN[3];//trigger / button1
+			joyb_raw[5] <= USER_IN[6];//button2
+			joyb_raw[6] <= 1'b1;
+			joyb_raw_th <= USER_IN[0];//sensor
+		end
+		joya <= joy_swap ? joyb_raw : joya_raw;
+		joyb <= joy_swap ? joya_raw : joyb_raw;	
+		joya_thin <=  joy_swap ? joyb_raw_th : joya_raw_th;
+		joyb_thin <=  joy_swap ? joya_raw_th : joyb_raw_th;	
 	end else begin
+		USER_OUT    <= '1;
+		USER_MODE   <= '0;
 		joya = ~joy[jcnt];
 		joyb = status[14] ? 7'h7F : ~joy[1];
 		joya_thin <=  1'b1;
