@@ -515,18 +515,41 @@ assign joy[2] = joy_2;
 assign joy[3] = joy_3;
 
 wire [6:0] joya,joyb;
-wire [6:0] joya_raw,joyb_raw;
+wire [6:0] joy_raw,joya_raw,joyb_raw;
 
 wire      joya_th,joyb_th;
 wire      joya_thin, joyb_thin;
-wire      joya_raw_th,joyb_raw_th;
+wire      joy_raw_th,joya_raw_th,joyb_raw_th;
 reg [1:0] jcnt = 0;
 
 reg JOY_SPLIT = 1'b1;
-reg [5:0] joy_delay;
-always @(posedge joy_delay[5])
+reg [4:0] joy_delay;
+
+always @(posedge &joy_delay)
 begin
 	JOY_SPLIT <= ~JOY_SPLIT;
+end
+always @(posedge &joy_delay)
+begin
+	if (JOY_SPLIT) begin
+			joya_raw[3] <= USER_IN[5];//up
+			joya_raw[2] <= USER_IN[7];//down	
+			joya_raw[1] <= USER_IN[1];//left
+			joya_raw[0] <= USER_IN[2];//right	
+			joya_raw[4] <= USER_IN[3];//trigger / button1
+			joya_raw[5] <= USER_IN[6];//button2
+			joya_raw[6] <= 1'b1;
+			joya_raw_th <= USER_IN[0];//sensor
+	end else begin
+			joyb_raw[3] <= USER_IN[5];//up
+			joyb_raw[2] <= USER_IN[7];//down	
+			joyb_raw[1] <= USER_IN[1];//left
+			joyb_raw[0] <= USER_IN[2];//right	
+			joyb_raw[4] <= USER_IN[3];//trigger / button1
+			joyb_raw[5] <= USER_IN[6];//button2
+			joyb_raw[6] <= 1'b1;
+			joyb_raw_th <= USER_IN[0];//sensor
+	end
 end
 
 always @(posedge clk_sys) begin
@@ -536,45 +559,26 @@ always @(posedge clk_sys) begin
 	if (raw_serial & ~raw_serial2) begin
 		USER_OUT    <= '1;
 		USER_MODE   <= '0;
-		joya_raw[3] <= USER_IN[5];//up
-		joya_raw[2] <= USER_IN[7];//down	
-		joya_raw[1] <= USER_IN[1];//left
-		joya_raw[0] <= USER_IN[2];//right	
-		joya_raw[4] <= USER_IN[3];//trigger / button1
-		joya_raw[5] <= USER_IN[6];//button2
-		joya_raw_th <= USER_IN[0];//sensor
+		joy_raw[3] <= USER_IN[5];//up
+		joy_raw[2] <= USER_IN[7];//down	
+		joy_raw[1] <= USER_IN[1];//left
+		joy_raw[0] <= USER_IN[2];//right	
+		joy_raw[4] <= USER_IN[3];//trigger / button1
+		joy_raw[5] <= USER_IN[6];//button2
+		joy_raw_th <= USER_IN[0];//sensor
 			if (!USER_IN[7] & !USER_IN[3] & !USER_IN[6]) begin //D 1 2 combo
-			joya_raw[6] <= 0;
+			joy_raw[6] <= 0;
 			end else begin
-			joya_raw[6] <= 1'b1;
+			joy_raw[6] <= 1'b1;
 			end
-		joya <= joy_swap ? ~joy[1] : joya_raw;
-		joyb <= joy_swap ? joya_raw : ~joy[0];	
-		joya_thin <=  joy_swap ? 1'b1 : joya_raw_th;
-		joyb_thin <=  joy_swap ? joya_raw_th : 1'b1;	
+		joya <= joy_swap ? ~joy[1] : joy_raw;
+		joyb <= joy_swap ? joy_raw : ~joy[0];	
+		joya_thin <=  joy_swap ? 1'b1 : joy_raw_th;
+		joyb_thin <=  joy_swap ? joy_raw_th : 1'b1;	
 	end else if (raw_serial & raw_serial2) begin
 		USER_OUT    <= {3'b111,JOY_SPLIT,4'b1111};
 		USER_MODE   <=	3'b100;
 		joy_delay<=joy_delay+1;
-		if (JOY_SPLIT) begin
-			joya_raw[3] <= USER_IN[5];//up
-			joya_raw[2] <= USER_IN[7];//down	
-			joya_raw[1] <= USER_IN[1];//left
-			joya_raw[0] <= USER_IN[2];//right	
-			joya_raw[4] <= USER_IN[3];//trigger / button1
-			joya_raw[5] <= USER_IN[6];//button2
-			joya_raw[6] <= 1'b1;
-			joya_raw_th <= USER_IN[0];//sensor
-		end else begin
-			joyb_raw[3] <= USER_IN[5];//up
-			joyb_raw[2] <= USER_IN[7];//down	
-			joyb_raw[1] <= USER_IN[1];//left
-			joyb_raw[0] <= USER_IN[2];//right	
-			joyb_raw[4] <= USER_IN[3];//trigger / button1
-			joyb_raw[5] <= USER_IN[6];//button2
-			joyb_raw[6] <= 1'b1;
-			joyb_raw_th <= USER_IN[0];//sensor
-		end
 		joya <= joy_swap ? joyb_raw : joya_raw;
 		joyb <= joy_swap ? joya_raw : joyb_raw;	
 		joya_thin <=  joy_swap ? joyb_raw_th : joya_raw_th;
@@ -586,7 +590,6 @@ always @(posedge clk_sys) begin
 		joyb = status[14] ? 7'h7F : ~joy[1];
 		joya_thin <=  1'b1;
 		joyb_thin <=  1'b1;
-
 		if(ce_cpu) begin
 			if(tmr > 57000) jcnt <= 0;
 			else if(joya_th) tmr <= tmr + 1'd1;
